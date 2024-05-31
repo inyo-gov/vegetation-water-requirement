@@ -1,0 +1,128 @@
+---
+title: "Greenbook section III.A.1. Calculation of Vegetation Water Requirement"
+description: |
+  Methods recorded in code to make future improvements accessible
+format: 
+  html: 
+    toc: true
+    toc-depth: 3
+    anchor-sections: true
+    smooth-scroll: true
+    code-fold: true
+    code-summary: "code"
+    code-line-numbers: true
+    code-overflow: wrap
+    code-link: true
+    html-math-method: katex
+tbl-cap-location: top   
+affiliation: "Inyo County Water Department"
+date: "2022-07-01"
+date-modified: "2024-05-31"
+citation:
+  type: report
+  container-title: "Green Book Section III On/Off Pumping Management"
+  publisher: "Inyo County Water Department"
+  issued: "2024-05-24"
+  url: https://github.com/inyo-gov/vegetation-water-requirement
+google-scholar: true
+---
+
+```{r setup, include=FALSE, message = FALSE, warning = FALSE}
+library(targets)
+library(tidyverse)
+library(rmarkdown)
+library(DT)
+library(htmlwidgets)
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+# options(tidyverse.quiet = TRUE)
+```
+
+# Purpose
+    
+The Water Agreement and Green Book established procedures to determine which LADWP pumping wells can be operated based vegetation water requirements. As part of the monitoring effort for the Agreement, the Water Department regularly measures soil water content and vegetation leaf area index (with LADWP) to estimate vegetation water needs at 22 permanent sites located in wellfields and eight sites in control areas. Soil water monitoring is conducted monthly and vegetation monitoring is conducted annually in June. 
+
+Each monitoring site is linked to one or more LADWP pumping wells. 
+
+On July 1 and October 1, if the soil water is insufficient to meet the needs of the vegetation at a site, the linked pumping wells cannot be operated. The wells must remain off until the soil water exceeds the amount required by the vegetation at the time the wells went off. This is referred to as the On/Off management strategy. During much of the period since this management was implemented in 1990, LADWP has not operated numerous wells in On status in accordance with subsequent agreements with the County.
+
+This website documents the code used to calculate the vegetation water requirements from the annual vegetation monitoring at on/off permanent vegetation transects.
+
+The `targets` package provides tools to construct a dependency aware analysis pipeline allowing automatic tracking of upstream changes to files which informs which processes are out of date and limits updates to only those downstream dependencies. 
+
+```{r vis-network, echo=FALSE, message=FALSE, warning=FALSE}
+tar_visnetwork()
+```
+
+The 'Stems' (circles) represent data file input, intermediate and final data wrangling transformations with computations of LAI and VWR. The functions (triangles) take an input stem and output a new stem shown by linkages in the pipeline. Color green indicates the stems and functions are up to date - grey indicates changes have been made since the last `tar_make()` call.
+ 
+Once the targets pipeline is made, the targets are stored in `_targets/objects`. These objects can be read into quarto or rmarkdown documents using tar_read().
+
+```{r read-targets}
+cYear <- tar_read(cYear)# current year
+```
+
+# Data Ingestion
+Point frame data is currently entered into excel spreadsheets on field tablets, and species level totals are copy/pasted into a wide format spreadsheet with site as rows and species as columns. This format was necessary in the past becaue the excel formulas were set up in that way. The number represents number of hits for each species in 3 dimensions every 30 cm for 334 pin drops.
+
+```{r pf-wide}
+tar_read(pointframe_wide) %>% datatable(caption = paste0('Point frame data entered in wide format in ',cYear,"."),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE)) 
+```
+
+The wide data is transformed into long format (tidy data). It should be noted here that the incoming wide format is an unnecessary intermediate format - a byproduct of doing column-wise calculations in the VWR excel calculator. Going forward, programmatically extracting the site-species-count rows into long format from the data entry spreadsheet should be a goal of the end to end data pipeline.
+
+```{r read-pf-long}
+tar_read(pointframe_long) %>% arrange(site,species) %>% datatable(caption = paste0('Tidy point-frame data (site-species unique row combos) obtained with pivot_longer() function on wide input data above. Data updated in ',cYear,"."),filter = c("top"),options = list(
+  pageLength = 7, autoWidth = FALSE)) 
+```
+
+```{r table-site-soil, eval=FALSE}
+tar_read(sitesoil) %>% datatable(caption = paste0("Site soil texture designation (silt or sand)."),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE))
+```
+
+```{r join-lai-ss-vwrmax, eval=FALSE}
+tar_read(vwrmax_lookt) %>% datatable(caption = paste0('Species-level leaf area index (LAI) for July 1, ',cYear,", and VWR max for each period (July or October), site soil texture designation (silt or sand) affecting plant available water."),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE))%>% formatRound('lai',2)
+```
+
+```{r table-vwr, eval=FALSE}
+
+tar_read(vwr) %>% filter(lai>0) %>%  datatable(caption = paste0('Species-level VWR at each site computed from multiplying LAI by VWR max for each period (July or October)'),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE))%>% formatRound(c('lai','vwr_at_lai_max','vwr'),2)
+```
+
+# Weighted average VWR/LAI 
+The sum of vwr for six species divided by sum of lai for six co-ocurring species provides estimates for VWRmax for the `OTHER` category.
+
+This value is multiplied by the LAI of the `OTHER` column to obtain VWR for `OTHER`.
+
+```{r table-weighted-avg}
+tar_read(weighted.avg)%>% datatable(caption = paste0('Site-level weighted average VWR/LAI for ',cYear,", used as VWR max for OTHER species category for each period ()."),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE))%>% formatRound(c('w_avg_vwr_per_lai'),2)
+```
+
+# Species level VWR
+Here we combine the site VWRs from the six dominant species and from the OTHER column into a single column.
+
+```{r table-vwr-species-level}
+# join weighted avg VWR/LAI to vwr by site, species, period, and combined 
+tar_read(vwr.total) %>% filter(all.hits > 0) %>% select(site,period,species,lai,total.vwr) %>%  datatable(caption = paste0("Total VWR for six dominant species and other species combined into one column"),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE)) %>% formatRound(c('lai','total.vwr'),2)
+```
+
+# Site-level VWR
+
+```{r table-vwr-site}
+tar_read(vwr.wide.period) %>% datatable(caption = paste0('Vegetation water requirements (cm) July 1 (half year) and Oct 1 (full year), for ',cYear,', calculated according to Greenbook section III.A.1.'),filter = c("top"),options = list(
+  pageLength = 5, autoWidth = FALSE),colnames = c('Site','July','October')) %>% formatRound(c('july','oct'),2) 
+```
+
+# Locations of Monitoring Sites
+Sites can be viewed by using the left pull out arrow and selecting a monitoring site to zoom to.
+
+<iframe src="https://www.arcgis.com/apps/dashboards/cc4c1795b7f946df832ee4fa2a87d616" height="500" width="800" style="border: 1px solid #464646;" allowfullscreen="" allow="autoplay" data-external="1"></iframe>
+
+
+

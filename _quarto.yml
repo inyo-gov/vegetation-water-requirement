@@ -1,0 +1,21 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Vegetation Water Requirement"
+  navbar:
+    left:
+      - href: index.qmd
+        text: VWR
+      - icon: github
+        href: https://github.com/inyo-gov/vegetation-water-requirement
+
+format:
+  html:
+    theme: sandstone
+    linkcolor: blue
+    css: styles.css
+    toc: true
+
+editor: visual
