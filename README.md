@@ -1,4 +1,4 @@
-a# Greenbook section III.A.1. Calculation of Vegetation Water
+# Greenbook section III.A.1. Calculation of Vegetation Water
     
 The Water Agreement and Green Book established procedures to determine which LADWP pumping wells can be operated based vegetation water requirements and available water content. As part of the monitoring effort for the Agreement, the Water Department regularly measures soil water content and vegetation leaf area index (with LADWP) to estimate vegetation water needs at 22 permanent sites located in wellfields and eight sites in control areas. Soil water monitoring is conducted monthly and vegetation monitoring is conducted annually in June. 
 
